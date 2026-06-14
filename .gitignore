@@ -21,3 +21,4 @@ venv/
 *.pt
 
 # Data (optional if large/private)
+/data
