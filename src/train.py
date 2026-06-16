@@ -124,11 +124,7 @@ def train_epoch(model , loader , optimizer , loss_fn):
         loss.backward()
         optimizer.step()
 
-        total_loss += loss.item()
-        correct += (preds.argmax(1) == labels).sum().item()
-        total += labels.size(0)
 
-    return total_loss / len(loader), correct / total
 
 
 
