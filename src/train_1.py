@@ -44,8 +44,8 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
-from torchvision import transforms
-import timm                          # EfficientNet, ConvNeXt, Swin etc.
+
+import timm            # EfficientNet, ConvNeXt, Swin etc.
 
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
@@ -67,10 +67,15 @@ from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
 # 1. Configuration
 # ─────────────────────────────────────────────────────────────
 class CFG:
-    # ── Paths ──────────────────────────────────────────────
-    data_root   = Path("..data/skin_dataset/")
-    output_dir  = Path("outputs")
-    model_path  = output_dir / "best_model.pth"
+    data_root  = Path("../data/skin_dataset/")
+    output_dir = Path("outputs")
+    model_path = output_dir / "best_model.pth"
+
+    # Read class names directly from your train folder
+    classes     = sorted([d.name for d in (data_root / "train").iterdir() if d.is_dir()])
+    num_classes = len(classes)
+    class_to_idx = {c: i for i, c in enumerate(classes)}
+    idx_to_class = {i: c for c, i in class_to_idx.items()}
 
     # ── Classes (14 lesion types) ──────────────────────────
     # Adjust to match your exact folder/label names
@@ -116,7 +121,8 @@ class CFG:
     patience     = 10         # early stopping
 
     # ── Device ─────────────────────────────────────────────
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = "mps"
+    device = torch.device("mps")
 
 
 def set_seed(seed: int):
@@ -180,7 +186,7 @@ class SkinLesionDataset(Dataset):
         data/train/melanoma/img001.jpg
         data/train/nevus/img002.jpg  ...
 
-    Falls back to manifest.csv if folder structure absent.
+
     """
     def __init__(self, root: Path, split: str, transform=None):
         self.transform = transform
@@ -197,19 +203,9 @@ class SkinLesionDataset(Dataset):
                     self.samples.append((img_path, label))
                 for img_path in cls_dir.glob("*.png"):
                     self.samples.append((img_path, label))
-        else:
-            # Fallback: read manifest.csv
-            manifest = pd.read_csv(root / "manifest.csv")
-            subset = manifest[manifest["split"] == split]
-            for _, row in subset.iterrows():
-                label = CFG.class_to_idx[row["label"]]
-                self.samples.append((Path(row["image_path"]), label))
 
-        if len(self.samples) == 0:
-            raise RuntimeError(f"No images found for split '{split}' in {root}")
 
-        print(f"  [{split:5s}] {len(self.samples):,} images across "
-              f"{len(set(s[1] for s in self.samples))} classes")
+
 
     def __len__(self) -> int:
         return len(self.samples)
@@ -592,9 +588,13 @@ def full_evaluation(model, loaders, datasets) -> dict:
 
     print("\n  Per-class report:")
     report = classification_report(
-        metrics["labels"], metrics["preds"],
-        target_names=CFG.classes, zero_division=0
+        metrics["labels"],
+        metrics["preds"],
+        labels=list(range(CFG.num_classes)),
+        target_names=CFG.classes,
+        zero_division=0
     )
+
     print(report)
 
     plot_confusion_matrix(metrics["labels"], metrics["preds"], CFG.classes)

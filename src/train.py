@@ -1,4 +1,4 @@
-import os
+print("start")
 
 import matplotlib.pyplot as plt
 import sklearn.metrics
@@ -16,10 +16,12 @@ from torch.optim import adam
 
 train_transform = transforms.Compose([
     transforms.Resize((224,224)),
-    transforms.RandomRotation(0),
+    transforms.RandomRotation(20),
     transforms.RandomHorizontalFlip(p = 0.5),
     transforms.RandomVerticalFlip(p = 0.5),
     transforms.ToTensor(),
+    transforms.Normalize([0.485, 0.456, 0.406],
+                         [0.229, 0.224, 0.225]),
 
 ])
 
@@ -91,6 +93,7 @@ class SkinLesionV0(nn.Module):
         # After MaxPool2d(2,2): spatial size = 224/2 = 112
         # Flattened size = hidden_units * 112 * 112
         self.classifier = nn.Sequential(
+
             nn.Flatten(),
             nn.Linear(hidden_units * 112 * 112, 256),
             nn.ReLU(),
@@ -103,17 +106,20 @@ class SkinLesionV0(nn.Module):
         x = self.classifier(x)
         return x
 
+device = torch.device(
+    "mps" if torch.backends.mps.is_available() else "cpu")
 
-model = SkinLesionV0(3, 32, 14)
+model = SkinLesionV0(3, 32, 14).to(device)
 
 loss_fn = nn.CrossEntropyLoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-epoch = 12
+
+epochs = 12
 
 
-def train_epoch(model , loader , optimizer , loss_fn):
+def train_one_epoch(model , loader , optimizer , loss_fn, device):
     model.train()
+    total_loss , correct , total = 0,0,0
     for images , labels in loader:
         images = images.to(device)
         labels = labels.to(device)
@@ -124,25 +130,56 @@ def train_epoch(model , loader , optimizer , loss_fn):
         loss.backward()
         optimizer.step()
 
+        total_loss += loss.item()
+        correct += (preds.argmax(1) == labels).sum().item()
+        total += labels.size(0)
+
+    return total_loss / len(loader), correct / total
 
 
 
 
 
 
+@torch.no_grad()
+def evaluate(model, loader, loss_fn, device):
+    model.eval()
+    total_loss, correct, total = 0, 0, 0
+    all_preds, all_labels = [], []
+
+    for images, labels in loader:
+        images, labels = images.to(device), labels.to(device)
+
+        preds = model(images)
+        loss  = loss_fn(preds, labels)
+
+        total_loss += loss.item()
+        correct    += (preds.argmax(1) == labels).sum().item()
+        total      += labels.size(0)
+
+        all_preds.extend(preds.argmax(1).cpu().numpy())
+        all_labels.extend(labels.cpu().numpy())
+
+    return total_loss / len(loader), correct / total, all_preds, all_labels
 
 
 
+history = {"train_loss": [], "train_acc": [], "test_loss": [], "test_acc": []}
+preds, labels = [], []
 
 
+for epoch in range(1, epochs + 1):
+    train_loss, train_acc = train_one_epoch(model, train_loader, optimizer, loss_fn, device)
+    test_loss,  test_acc, preds, labels = evaluate(model, test_loader, loss_fn, device)
 
+    history["train_loss"].append(train_loss)
+    history["train_acc"].append(train_acc)
+    history["test_loss"].append(test_loss)
+    history["test_acc"].append(test_acc)
 
-
-
-
-
-
-
+    print(f"Epoch {epoch:>2}/{epochs} | "
+          f"Train Loss: {train_loss:.4f}  Acc: {train_acc:.4f} | "
+          f"Test Loss: {test_loss:.4f}  Acc: {test_acc:.4f}")
 
 
 
