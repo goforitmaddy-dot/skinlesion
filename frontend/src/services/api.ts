@@ -5,7 +5,9 @@ export async function analyzeImage(file: File): Promise<PredictionResponse> {
 
   formData.append("file", file);
 
-  const response = await fetch("http://127.0.0.1:8000/predict", {
+  console.log(process.env.NEXT_PUBLIC_API_URL);
+
+  const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/predict`, {
     method: "POST",
     body: formData,
   });

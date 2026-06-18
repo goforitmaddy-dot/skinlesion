@@ -50,7 +50,7 @@ export default function Home() {
   return (
     <>
       <Navbar />
-      <main className="min-h-screen bg-linear-to-br from-zinc-200 via-gray-200 to-zinc-200 flex items-center justify-center p-6">
+      <main className="min-h-screen bg-linear-to-br from-gray-100 to-gray-300 flex items-center justify-center p-6">
         <div className="bg-white shadow-xl rounded-2xl p-8 w-full max-w-lg space-y-6">
           <div className="text-center">
             <h1 className="text-3xl font-bold">Skin Lesion Classifier</h1>

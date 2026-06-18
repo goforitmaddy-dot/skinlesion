@@ -22,3 +22,9 @@ venv/
 
 # Data (optional if large/private)
 /data
+backend/venv
+frontend/node_modules
+frontend/.next
+__pycache__
+*.pyc
+.DS_Store

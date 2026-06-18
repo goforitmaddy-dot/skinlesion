@@ -1,39 +1,40 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routes.predict import router as predict_router
+import shutil
 import os
-from dotenv import load_dotenv
-FRONTEND_URL = os.getenv("FRONTEND_URL")
-load_dotenv()
 
-PORT = os.getenv("PORT")
+from ml.predict import predict_image
 
-app = FastAPI(
-    title="Skin Lesion Classifier API",
-    description="Backend API for AI-powered skin lesion analysis",
-    version="1.0.0"
-)
-print("Backend server started successfully")
+app = FastAPI()
+
+# CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[FRONTEND_URL],
+    allow_origins=["http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Upload folder
+UPLOAD_DIR = "uploads"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
 @app.get("/")
-async def root():
-    return {
-        "message": "Skin Lesion Classifier API Running"
-    }
+def home():
+    return {"message": "Skin Lesion API Running"}
 
-@app.get("/health")
-async def health():
-    return {"status": "ok"}
+@app.post("/predict")
+async def predict(file: UploadFile = File(...)):
 
-app.include_router(
-    predict_router,
-    prefix="/predict",
-    tags=["Prediction Routes"]
-)
+    file_path = f"{UPLOAD_DIR}/{file.filename}"
+
+    # Save uploaded image
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    # Run ML prediction
+    result = predict_image(file_path)
+
+    return result
