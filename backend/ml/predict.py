@@ -24,32 +24,41 @@ CLASSES = [
     "urticaria",
 ]
 
-device = torch.device(
-    "cuda" if torch.cuda.is_available()
-    else "mps" if torch.backends.mps.is_available()
-    else "cpu"
-)
-
-model = SkinLesionModel()
-
-model.load_state_dict(
-    torch.load(MODEL_PATH, map_location=device)
-)
-
-model.to(device)
-model.eval()
+# Force CPU for Render free tier
+device = torch.device("cpu")
 
 transform = transforms.Compose([
     transforms.Resize((224, 224)),
     transforms.ToTensor(),
     transforms.Normalize(
-        [0.485, 0.456, 0.406],
-        [0.229, 0.224, 0.225]
-    )
+        mean=[0.485, 0.456, 0.406],
+        std=[0.229, 0.224, 0.225]
+    ),
 ])
+
+# Lazy loading
+model = None
+
+def get_model():
+    global model
+
+    if model is None:
+        model = SkinLesionModel()
+
+        model.load_state_dict(
+            torch.load(MODEL_PATH, map_location=device)
+        )
+
+        model.to(device)
+        model.eval()
+
+    return model
+
 
 @torch.no_grad()
 def predict_image(image_path):
+
+    model = get_model()
 
     image = Image.open(image_path).convert("RGB")
 
@@ -66,6 +75,7 @@ def predict_image(image_path):
     return {
         "prediction": CLASSES[predicted.item()],
         "confidence": float(confidence.item()),
+
         "top3": [
             {
                 "class": CLASSES[idx],
