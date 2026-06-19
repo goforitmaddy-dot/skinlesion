@@ -7,7 +7,7 @@ class SkinLesionModel(nn.Module):
         super().__init__()
 
         self.backbone = timm.create_model(
-            "efficientnet_b4",
+            "efficientnet_b0",
             pretrained=False,
             num_classes=0,
             global_pool="avg",
